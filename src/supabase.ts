@@ -20,6 +20,7 @@ export type Comment = {
   id: string
   post_id: string
   content: string
+  image_url: string | null
   likes: number
   created_at: string
 }

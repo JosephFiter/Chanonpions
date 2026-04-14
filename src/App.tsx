@@ -205,7 +205,10 @@ function CommentRow({ comment, onLikeUpdate }: {
   return (
     <li className="comment">
       <div className="comment-body">
-        <p className="comment-content">{comment.content}</p>
+        {comment.content && <p className="comment-content">{comment.content}</p>}
+        {comment.image_url && (
+          <img src={comment.image_url} className="comment-image" alt="" loading="lazy" />
+        )}
         <div className="comment-meta">
           <span className="comment-time">{timeAgo(comment.created_at)}</span>
           <button className={`comment-like-btn ${liked ? 'active' : ''}`} onClick={toggleLike} disabled={liking}>
@@ -226,8 +229,11 @@ function CommentSection({ postId, previewComments, onNewComment }: {
 }) {
   const [comments, setComments] = useState<Comment[]>([])
   const [text, setText] = useState('')
+  const [image, setImage] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     supabase.from('comments').select('*').eq('post_id', postId)
@@ -248,33 +254,82 @@ function CommentSection({ postId, previewComments, onNewComment }: {
     setComments(prev => prev.map(c => c.id === id ? { ...c, likes } : c))
   }
 
+  function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null
+    setImage(file)
+    setPreview(file ? URL.createObjectURL(file) : null)
+  }
+
+  function removeImage() {
+    setImage(null); setPreview(null)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = text.trim()
-    if (!trimmed || sending) return
+    if (!trimmed && !image) return
+    if (sending) return
     setSending(true)
+
+    let image_url: string | null = null
+    if (image) {
+      const ext = image.name.split('.').pop()
+      const filename = `comments/${crypto.randomUUID()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('post-images').upload(filename, image)
+      if (!upErr) {
+        image_url = supabase.storage.from('post-images').getPublicUrl(filename).data.publicUrl
+      }
+    }
+
     const { data, error } = await supabase.from('comments')
-      .insert({ post_id: postId, content: trimmed }).select().single()
-    if (!error && data) { setComments(p => [...p, data]); onNewComment(data); setText('') }
+      .insert({ post_id: postId, content: trimmed, image_url }).select().single()
+    if (!error && data) {
+      setComments(p => [...p, data])
+      onNewComment(data)
+      setText('')
+      removeImage()
+    }
     setSending(false)
   }
 
   const sorted = [...comments].sort((a, b) => b.likes - a.likes)
+  const canSubmit = (text.trim().length > 0 || image !== null) && !sending
 
   return (
     <div className="comments-section">
       <form className="comment-form" onSubmit={submit}>
-        <input
-          className="comment-input"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="Agregar un comentario anónimo"
-          maxLength={300}
-          disabled={sending}
-        />
-        <button className="comment-btn" type="submit" disabled={!text.trim() || sending}>
-          {sending ? '...' : 'Comentar'}
-        </button>
+        {preview && (
+          <div className="comment-img-preview-wrap">
+            <img src={preview} className="comment-img-preview" alt="preview" />
+            <button type="button" className="comment-img-remove" onClick={removeImage}>
+              <IconClose />
+            </button>
+          </div>
+        )}
+        <div className="comment-input-row">
+          <input
+            className="comment-input"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="Agregar un comentario anónimo"
+            maxLength={300}
+            disabled={sending}
+          />
+          <label className="comment-img-btn" title="Adjuntar imagen">
+            <IconImage />
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              style={{ display: 'none' }}
+              onChange={handleImage}
+            />
+          </label>
+          <button className="comment-btn" type="submit" disabled={!canSubmit}>
+            {sending ? '...' : 'Comentar'}
+          </button>
+        </div>
       </form>
       {loading ? (
         <p className="comments-empty">Cargando comentarios...</p>
