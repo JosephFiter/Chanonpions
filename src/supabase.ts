@@ -8,6 +8,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 export type Post = {
   id: string
   content: string
+  image_url: string | null
   likes: number
   dislikes: number
   created_at: string
@@ -17,5 +18,6 @@ export type Comment = {
   id: string
   post_id: string
   content: string
+  likes: number
   created_at: string
 }
