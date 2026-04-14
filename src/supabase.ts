@@ -11,6 +11,8 @@ export type Post = {
   image_url: string | null
   likes: number
   dislikes: number
+  poll_multiple: boolean
+  poll_allow_change: boolean
   created_at: string
 }
 
@@ -20,4 +22,12 @@ export type Comment = {
   content: string
   likes: number
   created_at: string
+}
+
+export type PollOption = {
+  id: string
+  post_id: string
+  text: string
+  votes: number
+  position: number
 }
